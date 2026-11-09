@@ -1,0 +1,4 @@
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+.ui-btn-sm { padding: 6px 14px; font-size: 12px; }
+.ui-btn-lg { padding: 14px 28px; font-size: 18px; }

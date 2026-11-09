@@ -1,0 +1,181 @@
+/* src/components/ui/styles.css */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Poppins:wght@300;400;500;600&display=swap');
+
+:root {
+  /* Brand Colors */
+  --color-primary: #2D2424; /* Dark Brown */
+  --color-primary-light: #4A3C3C;
+  --color-secondary: #C5A065; /* Gold Accent */
+  --color-secondary-hover: #b08d55;
+  --color-accent: #8B9D77; /* Muted Green */
+  --color-background: #F9F6F1; /* Warm Cream */
+  --color-surface: #FFFFFF;
+
+  /* Text Colors */
+  --text-primary: #2D2424;
+  --text-secondary: #666666;
+  --text-inverse: #FFFFFF;
+
+  /* Status Colors */
+  --color-error: #D32F2F;
+  --color-success: #388E3C;
+  --color-warning: #F57C00;
+
+  /* Typography */
+  --font-heading: 'Playfair Display', serif;
+  --font-body: 'Poppins', sans-serif;
+
+  /* Shadows & Radius */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.12);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.08);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.05);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-background);
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--color-primary);
+  margin-top: 0;
+}
+
+/* Base Component Classes */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  padding: 0.5rem 1.5rem;
+  font-size: 1rem;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: var(--text-inverse);
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color-primary-light);
+}
+
+.btn-secondary {
+  background-color: var(--color-secondary);
+  color: var(--text-inverse);
+}
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--color-secondary-hover);
+}
+
+.btn-outline {
+  background-color: transparent;
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
+}
+.btn-outline:hover:not(:disabled) {
+  background-color: var(--color-primary);
+  color: var(--text-inverse);
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--spacing-md);
+}
+
+.input-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: var(--spacing-xs);
+  color: var(--text-primary);
+}
+
+.input-field {
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  background-color: var(--color-surface);
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 2px rgba(197, 160, 101, 0.2);
+}
+
+.input-error {
+  border-color: var(--color-error);
+}
+
+.error-text {
+  color: var(--color-error);
+  font-size: 0.75rem;
+  margin-top: var(--spacing-xs);
+}
+
+/* Card classes */
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Layout Utilities */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+/* Spinner */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: currentColor;
+  width: 1rem;
+  height: 1rem;
+  animation: spin 1s linear infinite;
+  margin-right: 0.5rem;
+}

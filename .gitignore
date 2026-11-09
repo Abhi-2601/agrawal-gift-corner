@@ -1,0 +1,22 @@
+# Environment files (keep the documented example)
+.env
+.env.*
+!.env.example
+
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+coverage/
+.vercel/
+
+# Local/tooling files
+.idea/
+.vscode/
+*.local
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-heading: 'Playfair Display', Georgia, serif;
+    --font-body: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+    --bg-ivory: #FAF7F2;
+    --bg-card: #FFFDF9;
+    --plum: #392633;
+    --rose: #AE737D;
+    --blush: #F1E5E5;
+    --gold: #C2A16D;
+    --ink: #30272B;
+    --secondary: #786C70;
+    --border-subtle: #E8DED7;
+
+    --shadow-xs: 0 1px 2px rgba(57, 38, 51, 0.04);
+    --shadow-sm: 0 2px 6px rgba(57, 38, 51, 0.05);
+    --shadow-md: 0 6px 20px rgba(57, 38, 51, 0.07);
+    --shadow-lg: 0 12px 32px rgba(57, 38, 51, 0.09);
+  }
+
+  html {
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--ink);
+    background-color: var(--bg-ivory);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+
+  * { box-sizing: border-box; }
+
+  *:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--ink);
+    background-color: var(--bg-ivory);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    color: var(--plum);
+    margin: 0;
+    line-height: 1.2;
+    font-weight: 600;
+  }
+
+  h1 { font-size: clamp(2.25rem, 5vw, 4rem); letter-spacing: -0.02em; }
+  h2 { font-size: clamp(1.75rem, 3.8vw, 3rem); letter-spacing: -0.015em; }
+  h3 { font-size: clamp(1.25rem, 2.5vw, 1.75rem); letter-spacing: -0.01em; }
+  h4 { font-size: 1.125rem; font-weight: 600; }
+
+  p {
+    line-height: 1.65;
+    color: var(--secondary);
+    margin: 0;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center bg-plum text-white px-6 py-3 rounded-xl font-semibold text-sm tracking-normal shadow-sm hover:bg-[#2c1d27] transition-all duration-200 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center bg-warm-white text-plum border border-subtle-border px-6 py-3 rounded-xl font-semibold text-sm hover:bg-soft-blush hover:border-muted-rose/40 transition-all duration-200 active:scale-[0.99];
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center border border-plum/30 text-plum px-6 py-3 rounded-xl font-semibold text-sm hover:bg-plum hover:text-white transition-all duration-200 active:scale-[0.99];
+  }
+  .btn-gold {
+    @apply inline-flex items-center justify-center bg-champagne-gold text-plum font-bold px-6 py-3 rounded-xl text-sm hover:bg-[#d1b280] shadow-sm transition-all duration-200 active:scale-[0.99];
+  }
+}
+
+
+@layer utilities {
+  /* Soft edge fades so cropped photography blends into banner backgrounds */
+  .mask-fade-l {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 30%);
+    mask-image: linear-gradient(to right, transparent 0, #000 30%);
+  }
+  .mask-fade-t {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 32%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 32%);
+  }
+  /* Horizontal scrollers (category row, announcement bar) without visible scrollbars */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

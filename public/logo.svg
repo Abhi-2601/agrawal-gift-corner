@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <g transform="translate(10, 5)">
+    <!-- Heart/Ribbon Icon -->
+    <path d="M25 15 C10 5, 5 25, 25 45 C45 25, 40 5, 25 15 Z" fill="#D4537E"/>
+    <path d="M25 18 C15 10, 10 25, 25 40 C40 25, 35 10, 25 18 Z" fill="#C9A15A"/>
+    
+    <!-- Text -->
+    <text x="60" y="30" font-family="'Playfair Display', serif" font-size="22" font-weight="bold" fill="#2B2020">Agrawal Gift Corner</text>
+    <text x="60" y="45" font-family="'Poppins', sans-serif" font-size="10" fill="#993556" letter-spacing="1">PREMIUM GIFTING</text>
+  </g>
+</svg>
