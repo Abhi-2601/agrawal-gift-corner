@@ -1,53 +1,182 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
+import { Pencil, Plus, RefreshCw, Search, Tag, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { AdminEmpty, AdminError, AdminLoading, AdminPageHeader, StatusBadge } from '../../components/admin/AdminUI';
 import { supabase } from '../../lib/supabase';
+import { getAdminCategories } from '../../services/productService';
+import type { Category } from '../../lib/types';
+
+function slugify(value: string) {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
 
 export default function AdminCategoriesPage() {
-  const [items, setItems] = useState<any[]>([]);
-  const [form, setForm] = useState({ name: '', is_active: true });
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [name, setName] = useState('');
+  const [isActive, setIsActive] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [msg, setMsg] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => { refresh(); }, []);
-  const refresh = async () => { try { const { data } = await supabase.from('categories').select('*').order('created_at', { ascending: false }); setItems(data || []); } catch { setMsg('Load error'); } };
-
-  const save = async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      if (editingId) {
-        await supabase.from('categories').update({ name: form.name, is_active: form.is_active }).eq('id', editingId);
-        setMsg('Updated');
-      } else {
-        const generatedSlug = form.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        await supabase.from('categories').insert({ name: form.name, slug: generatedSlug || `cat-${Date.now()}`, is_active: form.is_active });
-        setMsg('Created');
-      }
-      setForm({ name: '', is_active: true });
-      setEditingId(null);
-      refresh();
-    } catch (e: any) { setMsg('Error: ' + e.message); }
+      setCategories(await getAdminCategories());
+    } catch (loadError: any) {
+      setError(loadError?.message || 'Could not load categories.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return term ? categories.filter((category) => category.name.toLowerCase().includes(term)) : categories;
+  }, [categories, search]);
+
+  const resetForm = () => {
+    setName('');
+    setIsActive(true);
+    setEditingId(null);
   };
 
-  const toggle = async (c: any) => { await supabase.from('categories').update({ is_active: !c.is_active }).eq('id', c.id); refresh(); };
-  const remove = async (c: any) => { if (!window.confirm('Remove ' + c.name + '?')) return; await supabase.from('categories').delete().eq('id', c.id); refresh(); };
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      if (editingId) {
+        const { error: updateError } = await supabase
+          .from('categories')
+          .update({ name: name.trim(), is_active: isActive })
+          .eq('id', editingId);
+        if (updateError) throw updateError;
+        toast.success('Category updated');
+      } else {
+        const { error: insertError } = await supabase.from('categories').insert({
+          name: name.trim(),
+          slug: slugify(name) || `category-${Date.now()}`,
+          is_active: isActive,
+        });
+        if (insertError) throw insertError;
+        toast.success('Category created');
+      }
+      resetForm();
+      await load();
+    } catch (saveError: any) {
+      toast.error(saveError?.message || 'Could not save category.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const edit = (category: Category) => {
+    setEditingId(category.id);
+    setName(category.name);
+    setIsActive(category.is_active !== false);
+  };
+
+  const toggle = async (category: Category) => {
+    const { error: updateError } = await supabase
+      .from('categories')
+      .update({ is_active: category.is_active === false })
+      .eq('id', category.id);
+    if (updateError) {
+      toast.error(updateError.message);
+      return;
+    }
+    setCategories((current) => current.map((item) => item.id === category.id ? { ...item, is_active: category.is_active === false } : item));
+  };
+
+  const remove = async (category: Category) => {
+    if (!window.confirm(`Delete “${category.name}”? Products in this category will become uncategorized.`)) return;
+    const { error: deleteError } = await supabase.from('categories').delete().eq('id', category.id);
+    if (deleteError) {
+      toast.error(deleteError.message);
+      return;
+    }
+    setCategories((current) => current.filter((item) => item.id !== category.id));
+    toast.success('Category deleted');
+  };
 
   return (
-    <section className="max-w-4xl mx-auto px-4 py-12">
-      <Link to="/admin" className="inline-flex items-center gap-1 text-ink/50 hover:text-dark-pink text-sm mb-6"><ArrowLeft size={16}/> Back</Link>
-      <h1 className="font-playfair text-4xl text-ink mb-2">Categories</h1>
-      <p className="text-ink/60 mb-6">Database-backed. No placeholders.</p>
-      {msg && <div className="bg-[#FFF6F8] border border-[#FBEAF0] rounded-xl p-3 text-sm mb-4">{msg}</div>}
-      <form onSubmit={e => { e.preventDefault(); save(); }} className="bg-white rounded-3xl p-6 shadow-lg border border-[#FBEAF0] mb-8 space-y-4">
-        <h2 className="font-playfair text-xl">{editingId ? 'Edit' : 'New Category'}</h2>
-        <input required placeholder="Category name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full border border-[#FBEAF0] rounded-xl px-4 py-2 bg-[#FFFDF9]" />
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} /> Active</label>
-        <div className="flex gap-3"><button className="bg-[#D4537E] text-white px-6 py-2 rounded-xl font-medium">{editingId ? 'Save' : 'Create'}</button>{editingId && <button type="button" onClick={() => { setEditingId(null); setForm({ name: '', is_active: true }); }} className="bg-ink/10 px-6 py-2 rounded-xl">Cancel</button>}</div>
-      </form>
-      <div className="bg-white rounded-3xl shadow-xl border border-[#FBEAF0] overflow-x-auto">
-        <table className="w-full text-sm text-ink/70"><thead className="bg-[#FFFDF9]"><tr><th className="text-left p-3">Name</th><th className="text-left p-3">Status</th><th className="text-left p-3">Actions</th></tr></thead><tbody>
-          {items.map(c => <tr key={c.id} className="border-b border-[#FBEAF0]/60"><td className="p-3 font-medium">{c.name}</td><td><button onClick={() => toggle(c)} className={`text-xs font-bold px-2 py-0.5 rounded-full ${c.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{c.is_active ? 'Active' : 'Hidden'}</button></td><td className="p-3"><button onClick={() => { setEditingId(c.id); setForm({ name: c.name, is_active: c.is_active }); }} className="text-xs bg-[#D4537E] text-white px-2 py-1 rounded-md mr-1">Edit</button><button onClick={() => remove(c)} className="text-xs bg-ink/10 px-2 py-1 rounded-md"><Trash2 size={12}/></button></td></tr>)}
-        </tbody></table>
-      </div>
-    </section>
+    <div>
+      <AdminPageHeader title="Categories" description="Organize your catalog into clear, browsable collections." />
+
+      {error ? (
+        <AdminError message={error} onRetry={() => void load()} />
+      ) : loading ? (
+        <AdminLoading label="Loading categories…" />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
+          <form onSubmit={save} className="admin-card h-fit p-5">
+            <h2 className="font-playfair text-lg font-bold text-ink">{editingId ? 'Edit category' : 'New category'}</h2>
+            <div className="mt-4 space-y-4">
+              <div>
+                <label htmlFor="category-name" className="admin-label">Category name *</label>
+                <input id="category-name" required value={name} onChange={(event) => setName(event.target.value)} className="admin-input" placeholder="e.g. Gift Hampers" />
+              </div>
+              <label className="flex items-center gap-2.5 text-sm font-medium text-ink">
+                <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} className="h-4 w-4 accent-burgundy" />
+                Visible in storefront
+              </label>
+              <div className="flex gap-2">
+                <button type="submit" disabled={saving} className="btn-primary flex-1 text-xs"><Plus size={14} /> {saving ? 'Saving…' : editingId ? 'Save changes' : 'Create category'}</button>
+                {editingId && <button type="button" onClick={resetForm} className="btn-secondary text-xs">Cancel</button>}
+              </div>
+            </div>
+          </form>
+
+          <div className="admin-card overflow-hidden">
+            <div className="flex flex-col gap-2 border-b border-subtle-border p-4 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-secondary-text/60" />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search categories…" className="admin-input pl-9" />
+              </div>
+              <button type="button" onClick={() => void load()} className="btn-secondary px-3 py-2 text-xs"><RefreshCw size={14} /> Refresh</button>
+            </div>
+
+            {categories.length === 0 ? (
+              <AdminEmpty icon={Tag} title="No categories yet" description="Create a category to organize your products." />
+            ) : filtered.length === 0 ? (
+              <AdminEmpty title="No matching categories" description="Try a different search term." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] text-left text-sm">
+                  <thead className="bg-[#FBF8F5] text-[0.68rem] uppercase tracking-[0.08em] text-secondary-text">
+                    <tr><th className="px-4 py-3 font-semibold">Category</th><th className="px-4 py-3 font-semibold">Slug</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-4 py-3 text-right font-semibold">Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((category) => (
+                      <tr key={category.id} className="border-t border-subtle-border/70">
+                        <td className="px-4 py-3 font-semibold text-ink">{category.name}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-secondary-text">{category.slug}</td>
+                        <td className="px-4 py-3">
+                          <button type="button" onClick={() => void toggle(category)}><StatusBadge status={category.is_active === false ? 'hidden' : 'active'} /></button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-1.5">
+                            <button type="button" onClick={() => edit(category)} className="grid h-8 w-8 place-items-center rounded-lg border border-subtle-border text-ink/60 hover:border-burgundy/30 hover:text-burgundy" aria-label={`Edit ${category.name}`}><Pencil size={14} /></button>
+                            <button type="button" onClick={() => void remove(category)} className="grid h-8 w-8 place-items-center rounded-lg border border-subtle-border text-ink/60 hover:border-red-200 hover:bg-red-50 hover:text-red-700" aria-label={`Delete ${category.name}`}><Trash2 size={14} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

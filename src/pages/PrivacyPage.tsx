@@ -1,48 +1,45 @@
+import ContentPage from '../components/ContentPage';
+
 export default function PrivacyPage() {
   return (
-    <section className="bg-ivory min-h-screen py-16">
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-        <div className="bg-warm-white rounded-3xl p-8 sm:p-12 shadow-xl border border-subtle-border">
-          <span className="text-[0.7rem] font-bold uppercase tracking-[0.2em] text-plum">Data Protection</span>
-          <h1 className="font-playfair text-3xl sm:text-4xl lg:text-5xl text-plum mt-2 mb-6">Privacy Policy</h1>
+    <ContentPage
+      eyebrow="Data protection"
+      title="Privacy policy"
+      intro="Agrawal Gift Corner values your trust. This policy explains what we collect, why we need it, and how we protect it."
+    >
+      <div className="space-y-6 text-sm leading-relaxed text-ink/70">
+        <p>When you browse or order from our store, we collect the information needed to fulfil your gift order and keep you updated.</p>
 
-          <div className="space-y-6 text-plum/80 leading-relaxed font-poppins text-sm sm:text-base">
-            <p>
-              Agrawal Gift Corner ("we", "our", "us") values your trust. This Privacy Policy outlines how your personal information is collected, used, and protected when you browse or make purchases from our store.
-            </p>
+        <section>
+          <h2 className="font-playfair text-xl font-bold text-ink">Information we collect</h2>
+          <p className="mt-2">We collect your name, delivery address, phone number, email address, order details, and any personalization instructions you provide.</p>
+        </section>
 
-            <div>
-              <h2 className="font-playfair text-xl font-bold text-plum mb-2">Information We Collect</h2>
-              <p>
-                When you make an order or register an account, we collect necessary contact information (name, delivery address, phone number, email address) and customization instructions to fulfill your order.
-              </p>
-            </div>
+        <section>
+          <h2 className="font-playfair text-xl font-bold text-ink">How we use it</h2>
+          <ul className="mt-2 list-disc space-y-1.5 pl-5">
+            <li>To process, pack, personalize, and dispatch your order.</li>
+            <li>To contact you on WhatsApp or phone to confirm order and payment details.</li>
+            <li>To share dispatch and delivery updates.</li>
+            <li>To improve our products and customer experience.</li>
+          </ul>
+        </section>
 
-            <div>
-              <h2 className="font-playfair text-xl font-bold text-plum mb-2">How We Use Your Information</h2>
-              <ul className="list-disc list-inside space-y-1.5 pl-2">
-                <li>Processing, packing, and dispatching your orders.</li>
-                <li>Contacting you via WhatsApp or phone to confirm order details and provide payment instructions.</li>
-                <li>Communicating shipping updates and tracking information.</li>
-              </ul>
-            </div>
+        <section>
+          <h2 className="font-playfair text-xl font-bold text-ink">Sharing and security</h2>
+          <p className="mt-2">We never sell or rent your personal data. Delivery partners receive only the details needed to deliver your order. Access to customer records is restricted to authorised store administrators.</p>
+        </section>
 
-            <div>
-              <h2 className="font-playfair text-xl font-bold text-plum mb-2">Third-Party Sharing</h2>
-              <p>
-                We never sell, rent, or trade your personal data. We only share delivery addresses and contact numbers with verified logistics and courier services strictly for fulfillment purposes.
-              </p>
-            </div>
+        <section>
+          <h2 className="font-playfair text-xl font-bold text-ink">Your choices</h2>
+          <p className="mt-2">You may request access, correction, or deletion of your account information by contacting us. Some order records may be retained where required for accounting or legal purposes.</p>
+        </section>
 
-            <div>
-              <h2 className="font-playfair text-xl font-bold text-plum mb-2">Contact Us</h2>
-              <p>
-                If you have questions about your privacy, contact us at <a href="mailto:agrawalgiftcorner@gmail.com" className="text-muted-rose font-medium underline underline-offset-2">agrawalgiftcorner@gmail.com</a>.
-              </p>
-            </div>
-          </div>
-        </div>
+        <section>
+          <h2 className="font-playfair text-xl font-bold text-ink">Contact</h2>
+          <p className="mt-2">For privacy questions, email <a href="mailto:agrawalgiftcorner@gmail.com" className="font-semibold text-burgundy underline underline-offset-2">agrawalgiftcorner@gmail.com</a>.</p>
+        </section>
       </div>
-    </section>
+    </ContentPage>
   );
 }

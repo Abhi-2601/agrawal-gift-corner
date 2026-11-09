@@ -16,10 +16,10 @@ interface Highlight {
 }
 
 const HIGHLIGHTS: Highlight[] = [
-  { show: 'flex', icon: Gift, text: 'Free Delivery on orders above ₹499' },
-  { show: 'hidden sm:flex', icon: Truck, text: 'Same Day Delivery in Selected Areas' },
-  { show: 'hidden lg:flex', icon: ShieldCheck, text: '100% Quality Assured' },
-  { show: 'hidden lg:flex', icon: Heart, text: 'Make Every Moment Special' },
+  { show: 'flex', icon: Gift, text: 'Free delivery on orders above ₹999' },
+  { show: 'hidden sm:flex', icon: Truck, text: 'Handcrafted & carefully packed' },
+  { show: 'hidden lg:flex', icon: ShieldCheck, text: '100% quality assured' },
+  { show: 'hidden lg:flex', icon: Heart, text: 'Make every moment special' },
 ];
 
 // Demo delivery pincode shown in the reference design.

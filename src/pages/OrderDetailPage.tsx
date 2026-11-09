@@ -1,7 +1,19 @@
-import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Clock, AlertCircle, MessageCircle } from "lucide-react";
-import { supabase } from "../lib/supabase";
+import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Clock,
+  MapPin,
+  MessageCircle,
+  Package,
+  Truck,
+  XCircle,
+} from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { formatCurrency, formatDate } from '../lib/utils';
+
+const STEPS = ['pending', 'confirmed', 'in_production', 'shipped', 'delivered'];
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -12,197 +24,167 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     if (!id) return;
+    let active = true;
+    setLoading(true);
+    setError(null);
     (async () => {
-      setLoading(true);
-      setError(null);
       try {
-        const { data: orderData, error: orderErr } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("id", id)
+        const { data: orderData, error: orderError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', id)
           .maybeSingle();
-
-        if (orderErr) throw orderErr;
+        if (orderError) throw orderError;
         if (!orderData) {
-          setError("Order not found or access denied.");
+          if (active) setError('Order not found or access denied.');
           return;
         }
-
+        const { data: itemData, error: itemError } = await supabase
+          .from('order_items')
+          .select('*')
+          .eq('order_id', id);
+        if (itemError) throw itemError;
+        if (!active) return;
         setOrder(orderData);
-
-        const { data: itemsData, error: itemsErr } = await supabase
-          .from("order_items")
-          .select("*")
-          .eq("order_id", id);
-
-        if (itemsErr) throw itemsErr;
-        setItems(itemsData || []);
-      } catch (err: any) {
-        setError(err.message || "Failed to load order details.");
+        setItems(itemData || []);
+      } catch (loadError: any) {
+        if (active) setError(loadError?.message || 'Could not load order details.');
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     })();
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   if (loading) {
-    return (
-      <section className="bg-ivory min-h-screen py-16 text-center">
-        <p className="text-plum/70 font-poppins">Loading order details...</p>
-      </section>
-    );
+    return <div className="container-page py-20 text-center text-sm text-secondary-text">Loading order details…</div>;
   }
 
   if (error || !order) {
     return (
-      <section className="bg-ivory min-h-screen py-16">
-        <div className="max-w-2xl mx-auto px-4 text-center bg-warm-white rounded-3xl p-10 border border-subtle-border shadow-xl">
-          <AlertCircle size={40} className="mx-auto text-muted-rose mb-4" />
-          <h1 className="font-playfair text-3xl text-plum mb-3">Order Not Found</h1>
-          <p className="text-secondary-text mb-6">{error || "We could not find the requested order."}</p>
-          <Link
-            to="/profile"
-            className="inline-flex items-center gap-2 bg-plum text-ivory px-6 py-3 rounded-full text-sm font-medium hover:bg-plum/90 transition shadow-md"
-          >
-            <ArrowLeft size={16} /> Back to My Orders
-          </Link>
+      <div className="container-page py-16 sm:py-20">
+        <div className="mx-auto max-w-md rounded-2xl border border-subtle-border bg-white p-8 text-center shadow-sm">
+          <XCircle size={32} className="mx-auto text-burgundy" />
+          <h1 className="mt-4 font-playfair text-2xl font-bold text-ink">Order not found</h1>
+          <p className="mt-2 text-sm text-secondary-text">{error || 'We could not find this order.'}</p>
+          <Link to="/profile" className="btn-primary mt-5">Back to my orders</Link>
         </div>
-      </section>
+      </div>
     );
   }
 
+  const currentStep = STEPS.indexOf(order.status);
+  const cancelled = order.status === 'cancelled';
+
   return (
-    <section className="bg-ivory min-h-screen py-16">
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-        <Link
-          to="/profile"
-          className="inline-flex items-center gap-1.5 text-plum/60 hover:text-plum text-sm font-medium mb-6 transition-colors"
-        >
-          <ArrowLeft size={16} /> Back to My Orders
+    <div className="bg-ivory">
+      <div className="container-page py-7 sm:py-10">
+        <Link to="/profile" className="inline-flex items-center gap-1.5 text-sm font-semibold text-secondary-text hover:text-burgundy">
+          <ArrowLeft size={15} /> Back to my orders
         </Link>
 
-        {/* Order Header */}
-        <div className="bg-warm-white rounded-3xl p-8 sm:p-10 shadow-xl border border-subtle-border mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-subtle-border/60 pb-6 mb-6">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-widest text-plum/50">Order Reference</span>
-              <h1 className="font-playfair text-3xl sm:text-4xl text-plum font-bold mt-1">
-                #{order.id.slice(0, 8)}
-              </h1>
-              <p className="text-secondary-text text-xs mt-1">
-                Placed on {new Date(order.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`text-xs font-bold px-3 py-1.5 rounded-full capitalize ${
-                order.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                order.status === 'shipped' ? 'bg-purple-100 text-purple-800' :
-                order.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
-                order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                'bg-amber-100 text-amber-800'
-              }`}>
-                Status: {order.status}
-              </span>
-
-              <span className={`text-xs font-bold px-3 py-1.5 rounded-full capitalize ${
-                order.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-              }`}>
-                Payment: {order.payment_status}
-              </span>
-            </div>
+        <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="eyebrow">Order reference</p>
+            <h1 className="mt-1">#{order.id.slice(0, 8)}</h1>
+            <p className="mt-1 text-sm text-secondary-text">Placed {formatDate(order.created_at)}</p>
           </div>
-
-          {/* Status Tracker & Delivery Notice */}
-          <div className="bg-soft-blush/60 rounded-2xl p-5 border border-subtle-border mb-8 space-y-2">
-            <div className="flex items-center gap-2 text-plum font-medium text-sm">
-              <Clock size={16} className="text-muted-rose" />
-              <span>Estimated Delivery: 7 to 15 days from order confirmation</span>
-            </div>
-            <p className="text-xs text-plum/70 leading-relaxed">
-              Agrawal Gift Corner orders are prepaid only. Our team contacts you directly to confirm customization details and provide verified payment instructions.
-            </p>
-          </div>
-
-          {/* Ordered Items List with Customization Notes */}
-          <h2 className="font-playfair text-2xl text-plum mb-4">Items Ordered</h2>
-          <div className="divide-y divide-subtle-border/60 mb-6">
-            {items.map((item) => (
-              <div key={item.id} className="py-4 flex flex-col sm:flex-row justify-between sm:items-start gap-4">
-                <div className="space-y-1">
-                  <h3 className="font-playfair text-lg text-plum font-bold">{item.product_name}</h3>
-                  <div className="text-xs text-secondary-text">
-                    Quantity: {item.quantity} × ₹{item.price_at_time}
-                  </div>
-                  {item.customization_notes ? (
-                    <div className="mt-2 text-xs bg-warm-white border border-subtle-border rounded-xl p-3 text-plum max-w-lg">
-                      <strong className="text-muted-rose font-semibold block mb-0.5">Customization Notes:</strong>
-                      {item.customization_notes}
-                    </div>
-                  ) : (
-                    <div className="text-xs text-secondary-text/60 italic">No customization notes provided</div>
-                  )}
-                </div>
-                <div className="font-playfair font-bold text-lg text-plum sm:text-right shrink-0">
-                  ₹{Number(item.price_at_time) * item.quantity}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Total Breakdown */}
-          <div className="border-t border-subtle-border pt-6 space-y-2 text-sm max-w-xs ml-auto">
-            <div className="flex justify-between text-secondary-text">
-              <span>Subtotal</span>
-              <span>₹{order.subtotal}</span>
-            </div>
-            <div className="flex justify-between text-secondary-text">
-              <span>Shipping Fee</span>
-              <span>{Number(order.shipping_fee) === 0 ? "Free" : `₹${order.shipping_fee}`}</span>
-            </div>
-            {Number(order.discount) > 0 && (
-              <div className="flex justify-between text-green-700">
-                <span>Discount</span>
-                <span>-₹{order.discount}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-playfair font-bold text-xl text-plum pt-2 border-t border-subtle-border">
-              <span>Total Amount</span>
-              <span>₹{order.total_amount}</span>
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full bg-white px-3 py-1.5 text-[0.68rem] font-bold capitalize text-ink/70 ring-1 ring-subtle-border">{order.status?.replace(/_/g, ' ')}</span>
+            <span className={`rounded-full px-3 py-1.5 text-[0.68rem] font-bold capitalize ${order.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{order.payment_status || 'unpaid'}</span>
           </div>
         </div>
 
-        {/* Shipping Address & Contact Support */}
-        <div className="grid sm:grid-cols-2 gap-8">
-          <div className="bg-warm-white rounded-3xl p-6 sm:p-8 shadow-xl border border-subtle-border space-y-3">
-            <h2 className="font-playfair text-xl text-plum">Delivery Destination</h2>
-            <div className="text-sm space-y-1 text-plum/80">
-              <p className="font-bold text-plum">{order.customer_name}</p>
-              <p>{order.shipping_address}</p>
-              <p>{order.shipping_city}, {order.shipping_state} - {order.shipping_pincode}</p>
-              <p className="text-xs text-secondary-text pt-1">Phone: {order.customer_phone}</p>
-              <p className="text-xs text-secondary-text">Email: {order.customer_email}</p>
+        {cancelled ? (
+          <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <XCircle size={18} className="mt-0.5 shrink-0" />
+            <p>This order was cancelled. If you need help, contact us on WhatsApp with your order reference.</p>
+          </div>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-subtle-border bg-white p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-1">
+              {STEPS.map((step, index) => {
+                const done = index <= currentStep;
+                return (
+                  <div key={step} className="flex flex-1 items-center">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <span className={`grid h-8 w-8 place-items-center rounded-full ${done ? 'bg-burgundy text-white' : 'bg-sand text-secondary-text'}`}>
+                        {index === 0 ? <Package size={15} /> : index === 3 ? <Truck size={15} /> : index === 4 ? <CheckCircle2 size={15} /> : <Clock size={15} />}
+                      </span>
+                      <span className={`hidden text-[0.62rem] font-semibold capitalize sm:block ${done ? 'text-burgundy' : 'text-secondary-text'}`}>{step.replace(/_/g, ' ')}</span>
+                    </div>
+                    {index < STEPS.length - 1 && <span className={`mx-1 h-0.5 flex-1 ${index < currentStep ? 'bg-burgundy' : 'bg-sand'}`} />}
+                  </div>
+                );
+              })}
             </div>
           </div>
+        )}
 
-          <div className="bg-warm-white rounded-3xl p-6 sm:p-8 shadow-xl border border-subtle-border space-y-4">
-            <h2 className="font-playfair text-xl text-plum">Need Assistance?</h2>
-            <p className="text-sm text-secondary-text leading-relaxed">
-              Have a question about your order #{order.id.slice(0, 8)} or wish to modify customization within 24 hours?
-            </p>
-            <a
-              href={`https://wa.me/917579951781?text=${encodeURIComponent(`Hi Agrawal Gift Corner, I have a query regarding my order #${order.id.slice(0, 8)}`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-[#25D366] text-white px-5 py-3 rounded-2xl text-sm font-medium hover:bg-[#1EBE5D] transition shadow-md w-full justify-center"
-            >
-              <MessageCircle size={18} /> WhatsApp Support
-            </a>
+        <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_340px]">
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-subtle-border bg-white p-5 shadow-[0_1px_2px_rgba(43,26,23,0.03)] sm:p-6">
+              <h2 className="font-playfair text-xl font-bold text-ink">Items ordered</h2>
+              <div className="mt-4 divide-y divide-subtle-border">
+                {items.map((item) => (
+                  <div key={item.id} className="flex justify-between gap-4 py-4 first:pt-0 last:pb-0">
+                    <div>
+                      <p className="text-sm font-semibold text-ink">{item.product_name}</p>
+                      <p className="mt-1 text-xs text-secondary-text">Qty {item.quantity} × {formatCurrency(Number(item.price_at_time))}</p>
+                      {item.customization_notes && (
+                        <div className="mt-2 rounded-lg bg-[#FBF6F2] p-2.5 text-xs leading-relaxed text-ink/70">
+                          <span className="font-semibold text-burgundy">Personalization: </span>{item.customization_notes}
+                        </div>
+                      )}
+                    </div>
+                    <p className="shrink-0 text-sm font-semibold text-ink">{formatCurrency(Number(item.price_at_time) * item.quantity)}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-subtle-border bg-white p-5 shadow-[0_1px_2px_rgba(43,26,23,0.03)] sm:p-6">
+              <h2 className="font-playfair text-xl font-bold text-ink">Delivery address</h2>
+              <div className="mt-3 flex items-start gap-3 text-sm text-secondary-text">
+                <MapPin size={17} className="mt-0.5 shrink-0 text-burgundy" />
+                <div>
+                  <p className="font-semibold text-ink">{order.customer_name}</p>
+                  <p className="mt-0.5">{order.shipping_address}</p>
+                  <p>{order.shipping_city}, {order.shipping_state} — {order.shipping_pincode}</p>
+                  <p className="mt-1 text-xs">{order.customer_phone}{order.customer_email ? ` · ${order.customer_email}` : ''}</p>
+                </div>
+              </div>
+            </section>
           </div>
+
+          <aside className="space-y-5">
+            <section className="rounded-2xl border border-subtle-border bg-white p-5 shadow-[0_1px_2px_rgba(43,26,23,0.03)]">
+              <h2 className="font-playfair text-lg font-bold text-ink">Order summary</h2>
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex justify-between text-secondary-text"><span>Subtotal</span><span>{formatCurrency(Number(order.subtotal))}</span></div>
+                <div className="flex justify-between text-secondary-text"><span>Delivery</span><span>{Number(order.shipping_fee) === 0 ? 'Free' : formatCurrency(Number(order.shipping_fee))}</span></div>
+                {Number(order.discount) > 0 && <div className="flex justify-between text-emerald-700"><span>Discount</span><span>−{formatCurrency(Number(order.discount))}</span></div>}
+                <div className="flex justify-between border-t border-subtle-border pt-3 text-base font-bold text-ink"><span>Total</span><span className="font-playfair text-xl text-burgundy">{formatCurrency(Number(order.total_amount))}</span></div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-subtle-border bg-[#FBF6F2] p-5">
+              <h2 className="font-playfair text-lg font-bold text-ink">Need help?</h2>
+              <p className="mt-1 text-xs leading-relaxed text-secondary-text">Questions about your order or personalization? Message our team on WhatsApp.</p>
+              <a
+                href={`https://wa.me/917579951781?text=${encodeURIComponent(`Hi Agrawal Gift Corner, I have a question about order #${order.id.slice(0, 8)}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary mt-4 w-full text-xs"
+              >
+                <MessageCircle size={15} /> WhatsApp support
+              </a>
+            </section>
+          </aside>
         </div>
       </div>
-    </section>
+    </div>
   );
 }

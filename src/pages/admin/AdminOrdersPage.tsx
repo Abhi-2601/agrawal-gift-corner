@@ -1,72 +1,180 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ChevronRight, Clock, IndianRupee, RefreshCw, Search, ShoppingBag } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { AdminEmpty, AdminError, AdminLoading, AdminPageHeader, StatCard, StatusBadge } from '../../components/admin/AdminUI';
 import { supabase } from '../../lib/supabase';
+import { formatCurrency, formatDate } from '../../lib/utils';
+
+const STATUS_OPTIONS = ['pending', 'confirmed', 'in_production', 'shipped', 'delivered', 'cancelled'];
+const PAYMENT_OPTIONS = ['unpaid', 'paid', 'refunded'];
 
 export default function AdminOrdersPage() {
+  const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState(searchParams.get('q') || '');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [paymentFilter, setPaymentFilter] = useState('all');
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await supabase.from('orders').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(30);
-        setOrders(data || []);
-      } catch {
-        setOrders([]);
-      } finally {
-        setLoading(false);
-      }
-    })();
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: loadError } = await supabase
+        .from('orders')
+        .select('*, profiles(full_name)')
+        .order('created_at', { ascending: false });
+      if (loadError) throw loadError;
+      setOrders(data || []);
+    } catch (loadError: any) {
+      setError(loadError?.message || 'Could not load orders.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const updateStatus = async (id: string, status: string) => {
-    try {
-      await supabase.from('orders').update({ status }).eq('id', id);
-      setOrders(orders.map(o => o.id === id ? { ...o, status } : o));
-    } catch {
-      // silent failure; could show error in real UI
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    setSearch(searchParams.get('q') || '');
+  }, [searchParams]);
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return orders.filter((order) => {
+      if (statusFilter !== 'all' && order.status !== statusFilter) return false;
+      if (paymentFilter !== 'all' && order.payment_status !== paymentFilter) return false;
+      if (!term) return true;
+      return (
+        order.id.toLowerCase().includes(term) ||
+        (order.customer_name || '').toLowerCase().includes(term) ||
+        (order.customer_phone || '').toLowerCase().includes(term) ||
+        (order.customer_email || '').toLowerCase().includes(term)
+      );
+    });
+  }, [orders, search, statusFilter, paymentFilter]);
+
+  const updateOrder = async (id: string, field: 'status' | 'payment_status', value: string) => {
+    setUpdatingId(id);
+    const { error: updateError } = await supabase.from('orders').update({ [field]: value }).eq('id', id);
+    if (updateError) {
+      toast.error(updateError.message);
+    } else {
+      setOrders((current) => current.map((order) => order.id === id ? { ...order, [field]: value } : order));
+      toast.success('Order updated');
     }
+    setUpdatingId(null);
   };
 
-  const updatePayment = async (id: string, paymentStatus: string) => {
-    try {
-      await supabase.from('orders').update({ payment_status: paymentStatus }).eq('id', id);
-      setOrders(orders.map(o => o.id === id ? { ...o, payment_status: paymentStatus } : o));
-    } catch {
-      // silent
-    }
-  };
+  const revenue = orders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
+  const pending = orders.filter((order) => order.status === 'pending').length;
 
-  if (loading) return <div className="max-w-6xl mx-auto px-4 py-12 text-ink/70">Loading orders...</div>;
   return (
-    <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <Link to="/admin" className="inline-flex items-center gap-1 text-ink/50 hover:text-dark-pink text-sm font-medium mb-6"><ArrowLeft size={16}/> Back to Dashboard</Link>
-      <h1 className="font-playfair text-4xl text-ink mb-2">Orders</h1>
-      <p className="text-ink/60 mb-6">Real database records. Status updates save to Supabase.</p>
+    <div>
+      <AdminPageHeader
+        title="Orders"
+        description="Review new orders, update fulfilment status, and record payments."
+        actions={<button type="button" onClick={() => void load()} className="btn-secondary text-xs"><RefreshCw size={14} /> Refresh</button>}
+      />
 
-      <div className="bg-white rounded-3xl shadow-xl border border-[#FBEAF0] overflow-x-auto">
-        <table className="w-full text-sm text-ink/70">
-          <thead className="bg-[#FFFDF9]"><tr><th className="text-left p-3 font-medium">Order</th><th className="text-left p-3 font-medium">Customer</th><th className="text-left p-3 font-medium">Address</th><th className="text-left p-3 font-medium">Total</th><th className="text-left p-3 font-medium">Status</th><th className="text-left p-3 font-medium">Payment</th><th className="text-left p-3 font-medium">Actions</th></tr></thead>
-          <tbody>
-            {orders.map(o => (
-              <tr key={o.id} className="border-b border-[#FBEAF0]/60">
-                <td className="p-3 font-medium text-ink">{o.id?.slice(0, 8) || '-'}</td>
-                <td className="p-3">{o.customer_name || o.profiles?.full_name || '-'}</td>
-                <td className="p-3 text-xs">{[o.shipping_city, o.shipping_state, o.shipping_pincode].filter(Boolean).join(', ')}</td>
-                <td className="p-3">₹{o.total_amount || 0}</td>
-                <td className="p-3"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${o.status === 'pending' ? 'bg-amber-100 text-amber-700' : o.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}`}>{o.status || 'pending'}</span></td>
-                <td className="p-3"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${o.payment_status === 'unpaid' ? 'bg-red-100 text-red-700' : o.payment_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}`}>{o.payment_status || 'unpaid'}</span></td>
-                <td className="p-3"><div className="flex gap-1">
-                  <button onClick={() => updateStatus(o.id, 'confirmed')} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-md font-medium" title="Confirm">Confirm</button>
-                  <button onClick={() => updateStatus(o.id, 'cancelled')} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-md font-medium" title="Cancel">Cancel</button>
-                  <button onClick={() => updatePayment(o.id, 'paid')} className="text-xs bg-[#D4537E] text-white px-2 py-1 rounded-md font-medium" title="Mark paid">Paid</button>
-                </div></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <StatCard label="Total orders" value={orders.length} icon={ShoppingBag} tone="burgundy" />
+        <StatCard label="Pending" value={pending} icon={Clock} tone="amber" />
+        <StatCard label="Order value" value={formatCurrency(revenue)} icon={IndianRupee} tone="green" />
       </div>
-    </section>
+
+      {error ? (
+        <AdminError message={error} onRetry={() => void load()} />
+      ) : loading ? (
+        <AdminLoading label="Loading orders…" />
+      ) : (
+        <>
+          <div className="admin-card mb-4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-secondary-text/60" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order, customer, phone…" className="admin-input pl-9" />
+            </div>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="admin-input sm:w-40">
+              <option value="all">All status</option>
+              {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>)}
+            </select>
+            <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)} className="admin-input sm:w-36">
+              <option value="all">All payments</option>
+              {PAYMENT_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+          </div>
+
+          {orders.length === 0 ? (
+            <AdminEmpty icon={ShoppingBag} title="No orders yet" description="New storefront orders will appear here." />
+          ) : filtered.length === 0 ? (
+            <AdminEmpty title="No orders match those filters" description="Try a different search term or reset the filters." />
+          ) : (
+            <div className="admin-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-left text-sm">
+                  <thead className="bg-[#FBF8F5] text-[0.68rem] uppercase tracking-[0.08em] text-secondary-text">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Order</th>
+                      <th className="px-4 py-3 font-semibold">Customer</th>
+                      <th className="px-4 py-3 font-semibold">Date</th>
+                      <th className="px-4 py-3 font-semibold">Total</th>
+                      <th className="px-4 py-3 font-semibold">Status</th>
+                      <th className="px-4 py-3 font-semibold">Payment</th>
+                      <th className="px-4 py-3 text-right font-semibold">View</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((order) => (
+                      <tr key={order.id} className="border-t border-subtle-border/70">
+                        <td className="px-4 py-3">
+                          <Link to={`/admin/orders/${order.id}`} className="font-mono text-xs font-semibold text-ink hover:text-burgundy">#{order.id.slice(0, 8)}</Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-ink">{order.customer_name || order.profiles?.full_name || '—'}</p>
+                          <p className="mt-0.5 text-[0.68rem] text-secondary-text">{order.customer_phone || order.customer_email || ''}</p>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-secondary-text">{formatDate(order.created_at)}</td>
+                        <td className="px-4 py-3 font-semibold text-ink">{formatCurrency(Number(order.total_amount))}</td>
+                        <td className="px-4 py-3">
+                          <select
+                            value={order.status || 'pending'}
+                            disabled={updatingId === order.id}
+                            onChange={(event) => void updateOrder(order.id, 'status', event.target.value)}
+                            className="rounded-md border border-subtle-border bg-white px-2 py-1 text-[0.68rem] font-semibold capitalize text-ink focus:border-burgundy focus:outline-none"
+                          >
+                            {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>)}
+                          </select>
+                          <div className="mt-1"><StatusBadge status={order.status} /></div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            value={order.payment_status || 'unpaid'}
+                            disabled={updatingId === order.id}
+                            onChange={(event) => void updateOrder(order.id, 'payment_status', event.target.value)}
+                            className="rounded-md border border-subtle-border bg-white px-2 py-1 text-[0.68rem] font-semibold capitalize text-ink focus:border-burgundy focus:outline-none"
+                          >
+                            {PAYMENT_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+                          </select>
+                          <div className="mt-1"><StatusBadge status={order.payment_status} /></div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link to={`/admin/orders/${order.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-burgundy hover:underline">Open <ChevronRight size={13} /></Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="border-t border-subtle-border px-4 py-3 text-[0.68rem] text-secondary-text">Showing {filtered.length} of {orders.length} orders</div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }

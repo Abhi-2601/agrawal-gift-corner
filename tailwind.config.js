@@ -31,7 +31,14 @@ export default {
           dark: "#5A0A14",
           deep: "#450509",
         },
+        wine: {
+          DEFAULT: "#7A1220",
+          light: "#9A1C2C",
+          dark: "#5C0D18",
+        },
         cream: "#FCF8F5",
+        sand: "#F4EAE3",
+        paper: "#FFFCF8",
         blush: {
           DEFAULT: "#FBE3DE",
           deep: "#F3CFC8",
@@ -50,9 +57,19 @@ export default {
           "0%": { opacity: "0", transform: "translateY(6px)" },
           "100%": { opacity: "1", transform: "none" },
         },
+        fadeUp: {
+          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "100%": { opacity: "1", transform: "none" },
+        },
+        fadeIn: {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
       },
       animation: {
         "hero-in": "heroIn 0.45s ease-out both",
+        "fade-up": "fadeUp 0.5s ease-out both",
+        "fade-in": "fadeIn 0.35s ease-out both",
       },
     },
   },

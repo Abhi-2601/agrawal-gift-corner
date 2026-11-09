@@ -1,71 +1,49 @@
-import { Heart, Gift, Sparkles, MapPin } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link } from 'react-router-dom';
+import { ArrowRight, Gift, Heart, MapPin, Sparkles } from 'lucide-react';
+
+const VALUES = [
+  { icon: Gift, title: 'Curated with care', text: 'Every hamper is thoughtfully composed with premium treats, keepsakes, and beautiful packaging.' },
+  { icon: Sparkles, title: 'Personal by design', text: 'Names, dates, photos, and handwritten notes turn a lovely gift into a meaningful one.' },
+  { icon: Heart, title: 'Service that feels human', text: 'We confirm every order personally on WhatsApp before your gift is crafted.' },
+];
 
 export default function AboutPage() {
   return (
-    <section className="bg-ivory min-h-screen py-16">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-2xl mx-auto mb-16">
-          <span className="text-[0.7rem] font-bold uppercase tracking-[0.2em] text-plum">Our Story</span>
-          <h1 className="font-playfair text-4xl sm:text-5xl lg:text-6xl text-plum mt-2 mb-4 leading-tight">
-            Crafting Memories with <span className="italic text-muted-rose">Love & Care</span>
-          </h1>
-          <p className="text-plum/80 leading-relaxed font-poppins text-lg">
-            Agrawal Gift Corner is a dedicated gifting store based in the holy city of Mathura, Uttar Pradesh, creating customized hampers and presents that celebrate life's most precious occasions.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8 mb-16">
-          <div className="bg-warm-white rounded-3xl p-8 shadow-xl border border-subtle-border text-center space-y-4">
-            <div className="w-14 h-14 rounded-full bg-soft-blush flex items-center justify-center text-plum mx-auto">
-              <Gift size={26} />
-            </div>
-            <h3 className="font-playfair text-xl text-plum font-bold">Curated Handcrafted Hampers</h3>
-            <p className="text-secondary-text text-sm leading-relaxed">
-              Every hamper is thoughtfully designed, combining premium treats, decor, and heartfelt elements chosen for elegance.
-            </p>
-          </div>
-
-          <div className="bg-warm-white rounded-3xl p-8 shadow-xl border border-subtle-border text-center space-y-4">
-            <div className="w-14 h-14 rounded-full bg-soft-blush flex items-center justify-center text-plum mx-auto">
-              <Sparkles size={26} />
-            </div>
-            <h3 className="font-playfair text-xl text-plum font-bold">Personalized Touch</h3>
-            <p className="text-secondary-text text-sm leading-relaxed">
-              We add customized names, dates, handwritten notes, and tailored designs to ensure every gift tells your personal story.
-            </p>
-          </div>
-
-          <div className="bg-warm-white rounded-3xl p-8 shadow-xl border border-subtle-border text-center space-y-4">
-            <div className="w-14 h-14 rounded-full bg-soft-blush flex items-center justify-center text-plum mx-auto">
-              <Heart size={26} />
-            </div>
-            <h3 className="font-playfair text-xl text-plum font-bold">Dedicated Customer Care</h3>
-            <p className="text-secondary-text text-sm leading-relaxed">
-              We personally verify every order with our customers over WhatsApp to confirm customization before handcrafted preparation.
+    <div className="bg-ivory">
+      <section className="border-b border-subtle-border bg-[#F8EDE7]">
+        <div className="container-page py-10 sm:py-14">
+          <div className="max-w-2xl">
+            <p className="eyebrow">Our story</p>
+            <h1 className="mt-2">Crafting memories with love and care</h1>
+            <p className="mt-4 text-sm leading-relaxed text-ink/65 sm:text-base">
+              Agrawal Gift Corner is a family-run gifting studio in Mathura, Uttar Pradesh. We create personalized hampers and presents that celebrate life’s most precious occasions.
             </p>
           </div>
         </div>
+      </section>
 
-        <div className="bg-warm-white rounded-3xl p-8 sm:p-12 shadow-xl border border-subtle-border flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-muted-rose font-medium text-sm">
-              <MapPin size={18} />
-              <span>Mathura, Uttar Pradesh, India</span>
+      <div className="container-page py-10 sm:py-12">
+        <div className="grid gap-4 md:grid-cols-3">
+          {VALUES.map(({ icon: Icon, title, text }) => (
+            <div key={title} className="rounded-2xl border border-subtle-border bg-white p-6 shadow-[0_1px_2px_rgba(43,26,23,0.03)]">
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-[#FBEAEC] text-burgundy"><Icon size={21} /></span>
+              <h2 className="mt-4 font-playfair text-xl font-bold text-ink">{title}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-secondary-text">{text}</p>
             </div>
-            <h2 className="font-playfair text-3xl text-plum">Celebrate your special moments with us</h2>
-            <p className="text-plum/80 text-sm max-w-xl">
-              Explore our wide variety of hampers for birthdays, anniversaries, weddings, festivals, and personal milestones.
-            </p>
+          ))}
+        </div>
+
+        <div className="mt-6 flex flex-col items-start justify-between gap-5 rounded-2xl bg-[#4A0D15] p-7 text-white sm:p-9 lg:flex-row lg:items-center">
+          <div>
+            <p className="inline-flex items-center gap-2 text-xs font-semibold text-[#F6DCCB]"><MapPin size={15} /> Mathura, Uttar Pradesh</p>
+            <h2 className="mt-2 max-w-xl font-playfair text-2xl font-bold text-white sm:text-3xl">Celebrate your special moments with us</h2>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/65">Explore hampers for birthdays, anniversaries, weddings, festivals, corporate gifting, and personal milestones.</p>
           </div>
-          <Link
-            to="/products"
-            className="inline-flex items-center justify-center bg-plum text-ivory font-bold px-8 py-4 rounded-2xl hover:bg-plum/90 transition shadow-lg shadow-plum/20 whitespace-nowrap"
-          >
-            Explore Collection
+          <Link to="/products" className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#F6DCCB] px-5 py-3 text-sm font-semibold text-[#4A0D15] transition-colors hover:bg-white">
+            Explore collection <ArrowRight size={16} />
           </Link>
         </div>
       </div>
-    </section>
+    </div>
   );
 }

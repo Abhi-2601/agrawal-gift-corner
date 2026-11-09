@@ -1,17 +1,31 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, AlertTriangle, ShieldCheck } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  Check,
+  ChevronRight,
+  Loader2,
+  LockKeyhole,
+  ShieldCheck,
+  Truck,
+} from 'lucide-react';
+import { useAuthStore } from '../hooks/useAuth';
 import { useCartStore } from '../hooks/useCartStore';
-import { useAuth } from '../hooks/useAuth';
+import { useShippingSettings } from '../hooks/useShippingSettings';
 import { supabase } from '../lib/supabase';
+import { formatCurrency } from '../lib/utils';
 
 export default function CheckoutPage() {
   const { items, clearCart } = useCartStore();
-  const { session, isLoading: authLoading } = useAuth();
+  const session = useAuthStore((state) => state.session);
+  const authLoading = useAuthStore((state) => state.isLoading);
+  const { fee, threshold } = useShippingSettings();
   const [submitted, setSubmitted] = useState(false);
+  const [orderId, setOrderId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [form, setForm] = useState({
     customerName: '',
     phone: '',
@@ -20,147 +34,96 @@ export default function CheckoutPage() {
     city: '',
     state: '',
     pincode: '',
-    country: 'India',
   });
 
-  const subtotal = items.reduce((s, item) => s + (item.product.sale_price || item.product.price) * item.quantity, 0);
-
-  const [shippingFee, setShippingFee] = useState<number | null>(null);
-  const [shippingThreshold, setShippingThreshold] = useState<number | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: feeData } = await supabase.from('website_settings').select('value').eq('key', 'shipping_fee').single();
-        const { data: threshData } = await supabase.from('website_settings').select('value').eq('key', 'shipping_threshold').single();
-        if (feeData?.value) setShippingFee(Number(feeData.value));
-        if (threshData?.value) setShippingThreshold(Number(threshData.value));
-      } catch {
-        // Fall back gracefully to standard defaults if settings unseeded
-        setShippingFee(50);
-        setShippingThreshold(1000);
-      }
-    })();
-  }, []);
-
-  const shipping = (shippingFee !== null && shippingThreshold !== null)
-    ? (subtotal >= shippingThreshold ? 0 : shippingFee)
-    : (subtotal >= 1000 ? 0 : 50);
-
+  const subtotal = items.reduce((sum, item) => sum + (item.product.sale_price || item.product.price) * item.quantity, 0);
+  const shipping = subtotal >= threshold ? 0 : fee;
   const total = subtotal + shipping;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     setError(null);
 
     if (!session?.user) {
       setError('You must be signed in to place an order.');
-      setSubmitting(false);
       return;
     }
     if (items.length === 0) {
       setError('Your shopping bag is empty.');
-      setSubmitting(false);
       return;
     }
-
-    if (!form.customerName || !form.phone || !form.address || !form.city || !form.state || !form.pincode) {
+    if (!form.customerName.trim() || !form.phone.trim() || !form.address.trim() || !form.city.trim() || !form.state.trim() || !form.pincode.trim()) {
       setError('Please complete all delivery fields.');
-      setSubmitting(false);
       return;
     }
 
-    const p_items = items.map(i => ({
-      product_id: i.product.id,
-      quantity: i.quantity,
-      customization_notes: i.customization || null,
-    }));
-
+    setSubmitting(true);
     try {
+      const pItems = items.map((item) => ({
+        product_id: item.product.id,
+        quantity: item.quantity,
+        customization_notes: item.customization || null,
+      }));
+
       const { data, error: rpcError } = await supabase.rpc('process_checkout', {
         p_profile_id: session.user.id,
-        p_customer_name: form.customerName,
-        p_customer_phone: form.phone,
-        p_customer_email: form.email || session.user.email,
-        p_shipping_address: form.address,
-        p_shipping_city: form.city,
-        p_shipping_state: form.state,
-        p_shipping_pincode: form.pincode,
+        p_customer_name: form.customerName.trim(),
+        p_customer_phone: form.phone.trim(),
+        p_customer_email: form.email.trim() || session.user.email,
+        p_shipping_address: form.address.trim(),
+        p_shipping_city: form.city.trim(),
+        p_shipping_state: form.state.trim(),
+        p_shipping_pincode: form.pincode.trim(),
         p_subtotal: subtotal,
         p_shipping_fee: shipping,
         p_discount: 0,
         p_total_amount: total,
-        p_items,
+        p_items: pItems,
       });
 
       if (rpcError) {
         setError(rpcError.message || 'Order request could not be processed. Your bag is preserved.');
-        setSubmitting(false);
         return;
       }
-
       if (!data) {
         setError('Order could not be created. Please verify details and retry. Your bag is preserved.');
-        setSubmitting(false);
         return;
       }
 
+      setOrderId(String(data));
       setSubmitted(true);
       clearCart();
-    } catch (err: any) {
-      setError(err?.message || 'An unexpected error occurred. Your bag is preserved.');
+    } catch (submitError: any) {
+      setError(submitError?.message || 'An unexpected error occurred. Your bag is preserved.');
+    } finally {
       setSubmitting(false);
     }
-  }, [session, items, form, subtotal, shipping, total, clearCart]);
-
-  if (items.length === 0 && !submitted) {
-    return (
-      <div className="bg-ivory min-h-screen py-20">
-        <div className="max-w-xl mx-auto px-4 text-center bg-warm-white rounded-3xl p-10 border border-subtle-border shadow-sm">
-          <h1 className="font-playfair text-3xl text-plum font-bold mb-3">Your Bag is Empty</h1>
-          <p className="text-secondary-text text-sm mb-6">Select a handcrafted gift to proceed to checkout.</p>
-          <Link to="/products" className="btn-primary">
-            Explore Collection
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  };
 
   if (submitted) {
     return (
-      <div className="bg-ivory min-h-screen py-16">
-        <div className="max-w-2xl mx-auto px-4 text-center bg-warm-white rounded-3xl p-8 sm:p-12 border border-subtle-border shadow-sm">
-          <div className="w-16 h-16 bg-soft-blush rounded-2xl flex items-center justify-center mx-auto mb-6 text-plum">
-            <Check size={32} className="text-muted-rose" />
-          </div>
-          <h1 className="font-playfair text-3xl sm:text-4xl text-plum font-bold mb-3">Order Request Received</h1>
-          <p className="text-secondary-text text-base mb-6 leading-relaxed">
-            Thank you for your order with <strong>Agrawal Gift Corner</strong>!
+      <div className="container-page py-16 sm:py-20">
+        <div className="mx-auto max-w-xl rounded-2xl border border-subtle-border bg-white p-8 text-center shadow-sm sm:p-10">
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-50 text-emerald-700">
+            <Check size={30} />
+          </span>
+          <h1 className="mt-5 font-playfair text-3xl font-bold text-ink">Order request received</h1>
+          <p className="mt-2 text-sm leading-relaxed text-secondary-text">
+            Thank you for choosing Agrawal Gift Corner. Our team will contact you on WhatsApp to verify the personalization and share payment instructions.
           </p>
-
-          <div className="bg-ivory border border-subtle-border rounded-2xl p-6 text-left mb-6 space-y-3 text-xs sm:text-sm text-plum/90">
-            <h2 className="font-playfair text-lg text-plum font-bold">What happens next?</h2>
-            <ul className="space-y-2 list-disc list-inside text-secondary-text">
-              <li>Our team directly reaches out to you on WhatsApp (<strong className="text-plum">+91 75799 51781</strong>) or phone to verify your order and customization notes.</li>
-              <li>Prepaid orders only: verified payment instructions are provided upon order confirmation.</li>
-              <li>Estimated delivery is 7–15 days from order confirmation.</li>
-              <li>Cancellations are accepted within 24 hours of confirmation.</li>
-            </ul>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-4">
-            <Link to="/" className="btn-primary">
-              Back to Home
-            </Link>
-            <Link to="/profile" className="btn-secondary">
-              View My Orders
-            </Link>
+          {orderId && (
+            <div className="mt-5 rounded-lg border border-subtle-border bg-[#FBF6F2] px-4 py-3 text-sm">
+              <span className="text-secondary-text">Order reference</span>
+              <p className="mt-0.5 font-mono text-xs font-semibold text-ink">#{orderId.slice(0, 8)}</p>
+            </div>
+          )}
+          <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
+            {orderId && <Link to={`/orders/${orderId}`} className="btn-primary">View order</Link>}
+            <Link to="/products" className="btn-secondary">Continue shopping</Link>
           </div>
         </div>
       </div>
@@ -168,232 +131,154 @@ export default function CheckoutPage() {
   }
 
   if (authLoading) {
-    return (
-      <div className="bg-ivory min-h-screen py-24 text-center">
-        <p className="text-secondary-text text-sm">Verifying session...</p>
-      </div>
-    );
+    return <div className="container-page py-20 text-center text-sm text-secondary-text">Checking your session…</div>;
   }
 
   if (!session?.user) {
     return (
-      <div className="bg-ivory min-h-screen py-20">
-        <div className="max-w-md mx-auto px-4 text-center bg-warm-white rounded-3xl p-10 border border-subtle-border shadow-sm">
-          <h1 className="font-playfair text-3xl text-plum font-bold mb-3">Sign In to Continue</h1>
-          <p className="text-secondary-text text-sm mb-6 leading-relaxed">
-            Please sign in to place your order securely and track delivery.
-          </p>
-          <Link to="/login" className="btn-primary w-full">
-            Sign In with Google
-          </Link>
+      <div className="container-page py-16 sm:py-20">
+        <div className="mx-auto max-w-md rounded-2xl border border-subtle-border bg-white p-8 text-center shadow-sm">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-blush text-burgundy">
+            <LockKeyhole size={24} />
+          </span>
+          <h1 className="mt-4 font-playfair text-2xl font-bold text-ink">Sign in to continue</h1>
+          <p className="mt-2 text-sm leading-relaxed text-secondary-text">Sign in securely to place your order and track delivery updates.</p>
+          <Link to="/login" className="btn-primary mt-5 w-full">Sign in with Google</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="container-page py-16 sm:py-20">
+        <div className="mx-auto max-w-md rounded-2xl border border-subtle-border bg-white p-8 text-center shadow-sm">
+          <h1 className="font-playfair text-2xl font-bold text-ink">Your bag is empty</h1>
+          <p className="mt-2 text-sm text-secondary-text">Add a gift before proceeding to checkout.</p>
+          <Link to="/products" className="btn-primary mt-5">Explore gifts</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-ivory min-h-screen py-10 lg:py-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Link to="/cart" className="inline-flex items-center gap-2 text-secondary-text hover:text-plum text-sm font-medium mb-6 transition-colors">
-          <ArrowLeft size={16} /> Back to Bag
+    <div className="bg-ivory">
+      <div className="container-page py-7 sm:py-10">
+        <Link to="/cart" className="inline-flex items-center gap-1.5 text-sm font-semibold text-secondary-text hover:text-burgundy">
+          <ArrowLeft size={15} /> Back to bag
         </Link>
-        <h1 className="font-playfair text-3xl sm:text-4xl lg:text-5xl text-plum font-bold mb-2">
-          Checkout
-        </h1>
-        <p className="text-secondary-text text-sm sm:text-base mb-8">
-          Please provide accurate delivery details. Orders are prepaid only.
-        </p>
+
+        <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="eyebrow">Secure checkout</p>
+            <h1 className="mt-1">Delivery details</h1>
+          </div>
+          <div className="flex items-center gap-2 text-[0.68rem] font-semibold text-secondary-text">
+            <span className="flex items-center gap-1 text-burgundy"><span className="grid h-5 w-5 place-items-center rounded-full bg-burgundy text-white">1</span> Bag</span>
+            <ChevronRight size={12} />
+            <span className="flex items-center gap-1 text-burgundy"><span className="grid h-5 w-5 place-items-center rounded-full bg-burgundy text-white">2</span> Details</span>
+            <ChevronRight size={12} />
+            <span className="flex items-center gap-1"><span className="grid h-5 w-5 place-items-center rounded-full bg-sand text-ink/60">3</span> Confirm</span>
+          </div>
+        </div>
 
         {error && (
-          <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 text-red-700 text-sm">
-            <AlertTriangle size={18} className="shrink-0" />
-            <span>{error}</span>
+          <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+            <AlertCircle size={18} className="mt-0.5 shrink-0" />
+            <span className="break-words">{error}</span>
           </div>
         )}
 
-        <div className="grid lg:grid-cols-12 gap-8 lg:gap-12">
-          {/* Delivery Form */}
-          <form onSubmit={handleSubmit} className="lg:col-span-7 space-y-6" noValidate>
-            <div className="bg-warm-white rounded-3xl p-6 sm:p-8 shadow-sm border border-subtle-border space-y-5">
-              <h2 className="font-playfair text-xl sm:text-2xl text-plum font-bold">
-                Delivery Details
-              </h2>
-
-              <div className="grid sm:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="mt-6 grid gap-7 lg:grid-cols-[1fr_360px] lg:gap-9">
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-subtle-border bg-white p-5 shadow-[0_1px_2px_rgba(43,26,23,0.03)] sm:p-6">
+              <h2 className="font-playfair text-xl font-bold text-ink">Contact</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="customerName" className="font-semibold text-xs sm:text-sm text-plum block mb-1.5">
-                    Full Name *
-                  </label>
-                  <input
-                    id="customerName"
-                    name="customerName"
-                    required
-                    value={form.customerName}
-                    onChange={handleChange}
-                    className="w-full border border-subtle-border rounded-xl px-4 py-2.5 bg-ivory text-sm text-plum placeholder:text-secondary-text/50 focus:outline-none focus:ring-2 focus:ring-champagne-gold"
-                    placeholder="Enter your name"
-                  />
+                  <label htmlFor="customerName" className="label-base">Full name *</label>
+                  <input id="customerName" name="customerName" required value={form.customerName} onChange={handleChange} className="input-base" placeholder="Your name" autoComplete="name" />
                 </div>
                 <div>
-                  <label htmlFor="phone" className="font-semibold text-xs sm:text-sm text-plum block mb-1.5">
-                    Phone Number (WhatsApp) *
-                  </label>
-                  <input
-                    id="phone"
-                    name="phone"
-                    required
-                    type="tel"
-                    value={form.phone}
-                    onChange={handleChange}
-                    className="w-full border border-subtle-border rounded-xl px-4 py-2.5 bg-ivory text-sm text-plum placeholder:text-secondary-text/50 focus:outline-none focus:ring-2 focus:ring-champagne-gold"
-                    placeholder="+91 98765 43210"
-                  />
+                  <label htmlFor="phone" className="label-base">WhatsApp number *</label>
+                  <input id="phone" name="phone" type="tel" required value={form.phone} onChange={handleChange} className="input-base" placeholder="+91 98765 43210" autoComplete="tel" />
                 </div>
               </div>
-
-              <div>
-                <label htmlFor="email" className="font-semibold text-xs sm:text-sm text-plum block mb-1.5">
-                  Email Address
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={form.email}
-                  onChange={handleChange}
-                  className="w-full border border-subtle-border rounded-xl px-4 py-2.5 bg-ivory text-sm text-plum placeholder:text-secondary-text/50 focus:outline-none focus:ring-2 focus:ring-champagne-gold"
-                  placeholder={session.user.email || 'you@example.com'}
-                />
+              <div className="mt-4">
+                <label htmlFor="email" className="label-base">Email address</label>
+                <input id="email" name="email" type="email" value={form.email} onChange={handleChange} className="input-base" placeholder={session.user.email || 'you@example.com'} autoComplete="email" />
               </div>
+            </section>
 
-              <div>
-                <label htmlFor="address" className="font-semibold text-xs sm:text-sm text-plum block mb-1.5">
-                  Street Address / House No. *
-                </label>
-                <input
-                  id="address"
-                  name="address"
-                  required
-                  value={form.address}
-                  onChange={handleChange}
-                  className="w-full border border-subtle-border rounded-xl px-4 py-2.5 bg-ivory text-sm text-plum placeholder:text-secondary-text/50 focus:outline-none focus:ring-2 focus:ring-champagne-gold"
-                  placeholder="House/flat no, street, locality"
-                />
-              </div>
-
-              <div className="grid sm:grid-cols-3 gap-4">
+            <section className="rounded-2xl border border-subtle-border bg-white p-5 shadow-[0_1px_2px_rgba(43,26,23,0.03)] sm:p-6">
+              <h2 className="font-playfair text-xl font-bold text-ink">Delivery address</h2>
+              <div className="mt-4 space-y-4">
                 <div>
-                  <label htmlFor="city" className="font-semibold text-xs sm:text-sm text-plum block mb-1.5">
-                    City *
-                  </label>
-                  <input
-                    id="city"
-                    name="city"
-                    required
-                    value={form.city}
-                    onChange={handleChange}
-                    className="w-full border border-subtle-border rounded-xl px-4 py-2.5 bg-ivory text-sm text-plum placeholder:text-secondary-text/50 focus:outline-none focus:ring-2 focus:ring-champagne-gold"
-                    placeholder="City"
-                  />
+                  <label htmlFor="address" className="label-base">Street address *</label>
+                  <input id="address" name="address" required value={form.address} onChange={handleChange} className="input-base" placeholder="House / flat number, street, locality" autoComplete="street-address" />
                 </div>
-                <div>
-                  <label htmlFor="state" className="font-semibold text-xs sm:text-sm text-plum block mb-1.5">
-                    State *
-                  </label>
-                  <input
-                    id="state"
-                    name="state"
-                    required
-                    value={form.state}
-                    onChange={handleChange}
-                    className="w-full border border-subtle-border rounded-xl px-4 py-2.5 bg-ivory text-sm text-plum placeholder:text-secondary-text/50 focus:outline-none focus:ring-2 focus:ring-champagne-gold"
-                    placeholder="State"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="pincode" className="font-semibold text-xs sm:text-sm text-plum block mb-1.5">
-                    Pincode *
-                  </label>
-                  <input
-                    id="pincode"
-                    name="pincode"
-                    required
-                    value={form.pincode}
-                    onChange={handleChange}
-                    className="w-full border border-subtle-border rounded-xl px-4 py-2.5 bg-ivory text-sm text-plum placeholder:text-secondary-text/50 focus:outline-none focus:ring-2 focus:ring-champagne-gold"
-                    placeholder="Pincode"
-                  />
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label htmlFor="city" className="label-base">City *</label>
+                    <input id="city" name="city" required value={form.city} onChange={handleChange} className="input-base" placeholder="City" autoComplete="address-level2" />
+                  </div>
+                  <div>
+                    <label htmlFor="state" className="label-base">State *</label>
+                    <input id="state" name="state" required value={form.state} onChange={handleChange} className="input-base" placeholder="State" autoComplete="address-level1" />
+                  </div>
+                  <div>
+                    <label htmlFor="pincode" className="label-base">Pincode *</label>
+                    <input id="pincode" name="pincode" required value={form.pincode} onChange={handleChange} className="input-base" placeholder="281403" autoComplete="postal-code" />
+                  </div>
                 </div>
               </div>
+            </section>
+
+            <div className="flex items-start gap-3 rounded-xl border border-subtle-border bg-[#FBF6F2] p-4 text-xs leading-relaxed text-secondary-text">
+              <ShieldCheck size={18} className="mt-0.5 shrink-0 text-burgundy" />
+              <p>Prepaid orders only. After you submit this request, our team will verify the personalization and share secure payment instructions on WhatsApp. No cash on delivery.</p>
             </div>
+          </div>
 
-            <div className="bg-warm-white p-5 rounded-2xl border border-subtle-border text-xs text-secondary-text flex items-start gap-3">
-              <ShieldCheck size={18} className="text-champagne-gold shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <strong className="text-plum block">Prepaid Policy & WhatsApp Confirmation</strong>
-                <p>
-                  We do not offer Cash on Delivery (COD). After submitting, our team contacts you to verify customizations and provide verified payment instructions.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className={`w-full btn-primary py-4 text-base ${submitting ? 'opacity-70 cursor-not-allowed' : ''}`}
-            >
-              {submitting ? 'Submitting Order Request...' : 'Submit Order Request'}
-            </button>
-          </form>
-
-          {/* Bag Items & Totals */}
-          <aside className="lg:col-span-5 bg-warm-white rounded-3xl p-6 sm:p-8 shadow-sm border border-subtle-border h-fit space-y-6">
-            <h2 className="font-playfair text-xl sm:text-2xl text-plum font-bold">
-              Items in Bag ({items.length})
-            </h2>
-
-            <div className="space-y-4 max-h-80 overflow-y-auto pr-1 divide-y divide-subtle-border/60">
-              {items.map((i) => (
-                <div key={i.id} className="pt-3 first:pt-0 flex gap-3 items-start">
-                  <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-soft-blush/30 border border-subtle-border/60">
-                    <img src={i.product.image || ''} alt="" className="w-full h-full object-cover" />
+          <aside className="h-fit rounded-2xl border border-subtle-border bg-white p-5 shadow-[0_1px_2px_rgba(43,26,23,0.04)] sm:p-6 lg:sticky lg:top-[8.5rem]">
+            <h2 className="font-playfair text-xl font-bold text-ink">Your order</h2>
+            <div className="mt-4 max-h-72 space-y-3 overflow-y-auto pr-1">
+              {items.map((item) => (
+                <div key={item.id} className="flex gap-3">
+                  <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-sand">
+                    <img src={item.product.image} alt="" className="h-full w-full object-cover" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-plum text-sm truncate">{i.product.name}</h3>
-                    <div className="text-xs text-secondary-text">
-                      Qty: {i.quantity} × ₹{i.product.sale_price || i.product.price}
-                    </div>
-                    {i.customization && (
-                      <div className="text-xs text-muted-rose mt-1 italic line-clamp-1">
-                        Note: {i.customization}
-                      </div>
-                    )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-ink">{item.product.name}</p>
+                    <p className="mt-0.5 text-[0.68rem] text-secondary-text">Qty {item.quantity} × {formatCurrency(item.product.sale_price || item.product.price)}</p>
+                    {item.customization && <p className="mt-0.5 line-clamp-1 text-[0.65rem] text-burgundy">Note: {item.customization}</p>}
                   </div>
-                  <div className="text-sm font-bold text-plum">
-                    ₹{(i.product.sale_price || i.product.price) * i.quantity}
-                  </div>
+                  <p className="text-xs font-semibold text-ink">{formatCurrency((item.product.sale_price || item.product.price) * item.quantity)}</p>
                 </div>
               ))}
             </div>
 
-            <div className="border-t border-subtle-border pt-4 space-y-2.5 text-sm text-secondary-text">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span className="text-plum font-medium">₹{subtotal}</span>
-              </div>
-              <div className="flex justify-between">
+            <div className="mt-4 space-y-2.5 border-t border-subtle-border pt-4 text-sm">
+              <div className="flex justify-between text-secondary-text"><span>Subtotal</span><span className="font-medium text-ink">{formatCurrency(subtotal)}</span></div>
+              <div className="flex justify-between text-secondary-text">
                 <span>Delivery</span>
-                <span className="text-plum font-medium">
-                  {shipping === 0 ? <strong className="text-emerald-700">Free</strong> : `₹${shipping}`}
-                </span>
+                <span className="font-medium text-ink">{shipping === 0 ? <span className="text-emerald-700">Free</span> : formatCurrency(shipping)}</span>
               </div>
-              <div className="flex justify-between text-lg font-bold text-plum border-t border-subtle-border pt-3">
-                <span>Total Amount</span>
-                <span className="font-playfair text-xl">₹{total}</span>
+              <div className="flex justify-between border-t border-subtle-border pt-3 text-base font-bold text-ink">
+                <span>Total</span>
+                <span className="font-playfair text-xl text-burgundy">{formatCurrency(total)}</span>
               </div>
             </div>
+
+            <button type="submit" disabled={submitting} className="btn-primary mt-5 w-full py-3">
+              {submitting ? <Loader2 size={16} className="animate-spin" /> : <LockKeyhole size={16} />}
+              {submitting ? 'Submitting request…' : 'Submit order request'}
+            </button>
+
+            <p className="mt-3 flex items-center justify-center gap-1.5 text-[0.68rem] text-secondary-text">
+              <Truck size={13} /> Estimated delivery 7–15 days after confirmation
+            </p>
           </aside>
-        </div>
+        </form>
       </div>
     </div>
   );
